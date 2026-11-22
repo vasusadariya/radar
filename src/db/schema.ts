@@ -72,6 +72,11 @@ export const leads = pgTable(
     status: leadStatus("status").default("NEW").notNull(),
     brief: text("brief"),
     notes: text("notes"),
+    // Easy Apply run state: idle | running | done | error. runStep is the human-readable current step.
+    runState: text("run_state").default("idle").notNull(),
+    runStep: text("run_step"),
+    runError: text("run_error"),
+    runStartedAt: timestamp("run_started_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -89,7 +94,17 @@ export const contacts = pgTable("contacts", {
   email: text("email"),
   emailSource: emailSource("email_source"),
   emailVerified: boolean("email_verified").default(false).notNull(),
+  foundVia: text("found_via"), // where the person was found (article, post, website)
   createdAt: createdAt(),
+});
+
+// OAuth connections (one row per provider). Tokens are AES-GCM encrypted with AUTH_SECRET.
+export const integrations = pgTable("integrations", {
+  provider: text("provider").primaryKey(), // "google"
+  accountEmail: text("account_email"),
+  refreshTokenEnc: text("refresh_token_enc").notNull(),
+  scopes: text("scopes"),
+  updatedAt: updatedAt(),
 });
 
 export const resumes = pgTable("resumes", {

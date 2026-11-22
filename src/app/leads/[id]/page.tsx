@@ -1,14 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { desc, eq } from "drizzle-orm";
-import { db, companies, events, leads, messages } from "@/db";
+import { db, companies, contacts, events, leads, messages, resumes } from "@/db";
 import { deleteLead, saveLeadNotes } from "@/app/actions";
 import { ScoreBadge } from "@/components/lead-card";
 import { StatusSelect } from "@/components/status-select";
+import { RunButton } from "@/components/run-button";
+import { ContactsPanel, DraftCard } from "@/components/outreach";
+import { gmailAccount } from "@/lib/gmail";
 import { SOURCE_LABEL, SOURCE_STYLE, STATUS_LABEL, timeAgo } from "@/lib/format";
 import type { LeadStatus } from "@/lib/statuses";
 
 export const dynamic = "force-dynamic";
+// Easy Apply runs in the background after the Run action returns; give it room.
+export const maxDuration = 300;
 
 function describeEvent(type: string, meta: unknown): string {
   const m = (meta ?? {}) as Record<string, unknown>;
@@ -17,6 +22,16 @@ function describeEvent(type: string, meta: unknown): string {
       return m.feed ? `Captured from ${m.feed}` : "Added manually";
     case "SCORED":
       return `Scored ${m.score}${m.stage && m.stage !== "UNKNOWN" ? ` (stage: ${String(m.stage).toLowerCase().replace("_", " ")})` : ""}`;
+    case "RESEARCHED":
+      return `Researched${Array.isArray(m.people) && m.people.length ? ` — found ${m.people.length} people` : ""}`;
+    case "EMAIL_FOUND":
+      return `Email found for ${m.name} (${String(m.source).toLowerCase()}${m.verified ? ", verified" : ""})`;
+    case "EMAIL_NOT_FOUND":
+      return `No email found for ${m.name}`;
+    case "DRAFTED":
+      return `Drafted email to ${m.to}${m.gmail ? " (in Gmail)" : ""}`;
+    case "SENT":
+      return `Sent to ${m.to}`;
     case "STATUS_CHANGED":
       return `Moved ${STATUS_LABEL[m.from as LeadStatus] ?? m.from} → ${STATUS_LABEL[m.to as LeadStatus] ?? m.to}`;
     default:
@@ -36,10 +51,16 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
   if (!row) notFound();
   const { lead, company } = row;
 
-  const [timeline, sent] = await Promise.all([
+  const [timeline, msgs, people, resumeRows, gmail] = await Promise.all([
     db.select().from(events).where(eq(events.leadId, id)).orderBy(desc(events.at)),
     db.select().from(messages).where(eq(messages.leadId, id)).orderBy(desc(messages.createdAt)),
+    db.select().from(contacts).where(eq(contacts.companyId, company.id)).orderBy(contacts.createdAt),
+    db.select({ id: resumes.id, label: resumes.label }).from(resumes).orderBy(desc(resumes.isDefault)),
+    gmailAccount(),
   ]);
+  const byContact = new Map(people.map((c) => [c.id, c]));
+  const drafts = msgs.filter((m) => !m.sentAt && m.direction === "OUT");
+  const sent = msgs.filter((m) => m.sentAt);
 
   const facts: Array<[string, string | null]> = [
     ["Round", company.fundingRound],
@@ -69,38 +90,76 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
         </div>
 
         <section className="card p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <button className="btn-primary" disabled title="Arrives in Phase 2">
-              Run Easy Apply
-            </button>
-            <span className="text-xs text-zinc-500">
-              Phase 2: research → find 3 people → find emails → draft in Gmail with your resume
-            </span>
-          </div>
+          <RunButton leadId={lead.id} runState={lead.runState} runStep={lead.runStep} runError={lead.runError} />
+          {!gmail && (
+            <p className="mt-2 text-xs text-zinc-500">
+              Gmail isn&apos;t connected, so drafts stay here. <Link href="/profile" className="underline">Connect it</Link> to get them in your Gmail drafts and send from here.
+            </p>
+          )}
         </section>
 
         <section className="card p-4">
           <h2 className="font-semibold">Research brief</h2>
-          <p className="mt-1 text-sm text-zinc-600">
-            {lead.brief ?? "Not researched yet. The Phase 2 pipeline writes what they build and where you'd help here."}
+          <p className="mt-1 whitespace-pre-line text-sm text-zinc-700">
+            {lead.brief ?? "Not researched yet. Run Easy Apply to fill this in."}
           </p>
         </section>
 
-        <section className="card p-4">
-          <h2 className="font-semibold">Emails</h2>
-          {sent.length === 0 ? (
-            <p className="mt-1 text-sm text-zinc-600">No emails yet.</p>
-          ) : (
+        <ContactsPanel
+          leadId={lead.id}
+          contacts={people.map((c) => ({
+            id: c.id,
+            name: c.name,
+            title: c.title,
+            email: c.email,
+            emailSource: c.emailSource,
+            emailVerified: c.emailVerified,
+            foundVia: c.foundVia,
+            hasDraft: msgs.some((m) => m.contactId === c.id),
+          }))}
+        />
+
+        {drafts.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="font-semibold">Drafts to review ({drafts.length})</h2>
+            {drafts.map((m) => {
+              const c = m.contactId ? byContact.get(m.contactId) : undefined;
+              return (
+                <DraftCard
+                  key={m.id}
+                  d={{
+                    id: m.id,
+                    to: c?.email ?? "",
+                    toName: c?.name ?? "contact",
+                    subject: m.subject,
+                    body: m.body,
+                    resumeId: m.resumeId,
+                    inGmail: Boolean(m.gmailDraftId),
+                    guessed: c?.emailSource === "PATTERN",
+                  }}
+                  resumes={resumeRows}
+                  gmailConnected={Boolean(gmail)}
+                />
+              );
+            })}
+          </section>
+        )}
+
+        {sent.length > 0 && (
+          <section className="card p-4">
+            <h2 className="font-semibold">Sent</h2>
             <ul className="mt-2 divide-y divide-zinc-100 text-sm">
               {sent.map((m) => (
                 <li key={m.id} className="py-2">
                   <span className="font-medium">{m.subject}</span>{" "}
-                  <span className="text-zinc-500">· {m.sentAt ? `sent ${timeAgo(m.sentAt)}` : "draft"}</span>
+                  <span className="text-zinc-500">
+                    · to {m.contactId ? byContact.get(m.contactId)?.name ?? "contact" : "contact"} · {timeAgo(m.sentAt)}
+                  </span>
                 </li>
               ))}
             </ul>
-          )}
-        </section>
+          </section>
+        )}
 
         <section className="card p-4">
           <h2 className="font-semibold">Notes</h2>

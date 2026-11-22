@@ -5,6 +5,7 @@ import { LeadCard } from "@/components/lead-card";
 import { timeAgo } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300; // the Run button's background job runs in this route
 
 const VIEWS = {
   inbox: { label: "Inbox", hint: "New leads you haven't acted on" },

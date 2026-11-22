@@ -89,7 +89,7 @@ function buildPrompt(profileText: string, batch: RawItem[]): string {
 JOB SEEKER:
 ${profileText}
 
-For EACH news item below decide whether it announces a specific company raising a private funding round (pre-seed, seed, Series A/B/..., or an undisclosed round). Acquisitions, IPOs, fund launches by VCs, layoffs, opinion pieces and roundups are NOT funding announcements.
+For EACH news item below decide whether it announces a specific company raising a private funding round (pre-seed, seed, Series A/B/..., or an undisclosed round). Acquisitions, IPOs, QIPs and other public-market raises by listed companies, fund launches by VCs, layoffs, opinion pieces and roundups are NOT funding announcements.
 
 For funding items extract: company (the startup that raised, not the investor), website (only if stated), round, amount (with currency as written), investors (comma-separated, lead first), sector, geo (HQ city/country), whatTheyDo (one plain sentence), fit (0-100: how likely this company needs someone like the job seeker soon — weigh tech/AI/software-heavy products and engineering hiring high, non-software businesses low, and respect "sectors to skip"), fitReason (one short sentence).
 For non-funding items return only index and isFunding=false.

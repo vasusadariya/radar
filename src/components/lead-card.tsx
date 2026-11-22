@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Company, Lead } from "@/db/schema";
 import { SOURCE_LABEL, SOURCE_STYLE, scoreStyle, timeAgo } from "@/lib/format";
 import { DismissButton, StatusSelect } from "./status-select";
+import { RunButton } from "./run-button";
 
 export function ScoreBadge({ score }: { score: number }) {
   return (
@@ -32,14 +33,7 @@ export function LeadCard({ lead, company }: { lead: Lead; company: Company }) {
         </div>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-zinc-100 pt-3">
-        <button
-          type="button"
-          className="btn-primary px-2.5 py-1 text-xs"
-          disabled
-          title="Easy Apply (research → contacts → email draft) arrives in Phase 2"
-        >
-          Run
-        </button>
+        <RunButton leadId={lead.id} runState={lead.runState} compact />
         <Link href={`/leads/${lead.id}`} className="btn-ghost px-2.5 py-1 text-xs">
           Open
         </Link>
