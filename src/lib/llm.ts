@@ -8,16 +8,19 @@ import { z } from "zod";
 
 export type LlmJson = <T>(prompt: string, schema: z.ZodType<T>) => Promise<T>;
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
+// Tried in order: a busy (503) or retired (404) model falls through to the next.
+const GEMINI_MODELS = [
+  ...new Set([process.env.GEMINI_MODEL || "gemini-flash-latest", "gemini-flash-lite-latest"].filter(Boolean)),
+];
 const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function callGemini(prompt: string): Promise<string> {
+async function callGemini(prompt: string, model: string): Promise<string> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("GEMINI_API_KEY not set");
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
       method: "POST",
       headers: { "content-type": "application/json", "x-goog-api-key": key },
@@ -89,7 +92,9 @@ async function withRetry(fn: () => Promise<string>, tries = 3): Promise<string> 
 
 export const llmJson: LlmJson = async (prompt, schema) => {
   const providers: Array<[string, () => Promise<string>]> = [];
-  if (process.env.GEMINI_API_KEY) providers.push(["gemini", () => withRetry(() => callGemini(prompt))]);
+  if (process.env.GEMINI_API_KEY) {
+    for (const model of GEMINI_MODELS) providers.push([model, () => withRetry(() => callGemini(prompt, model), 2)]);
+  }
   if (process.env.GROQ_API_KEY) providers.push(["groq", () => withRetry(() => callGroq(prompt))]);
   if (providers.length === 0) throw new Error("No LLM configured: set GEMINI_API_KEY (or GROQ_API_KEY)");
 
