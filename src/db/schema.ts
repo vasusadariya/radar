@@ -98,6 +98,13 @@ export const contacts = pgTable("contacts", {
   createdAt: createdAt(),
 });
 
+// Small key/value store for app state (e.g. when replies were last checked).
+export const settings = pgTable("settings", {
+  key: text("key").primaryKey(),
+  value: jsonb("value"),
+  updatedAt: updatedAt(),
+});
+
 // OAuth connections (one row per provider). Tokens are AES-GCM encrypted with AUTH_SECRET.
 export const integrations = pgTable("integrations", {
   provider: text("provider").primaryKey(), // "google"
@@ -131,6 +138,8 @@ export const messages = pgTable("messages", {
   resumeId: uuid("resume_id").references(() => resumes.id, { onDelete: "set null" }),
   attachOrLink: attachMode("attach_or_link").default("ATTACH").notNull(),
   isFollowUp: boolean("is_follow_up").default(false).notNull(),
+  // RFC 822 Message-ID this message replies to (keeps follow-ups in the same Gmail thread).
+  inReplyTo: text("in_reply_to"),
   sentAt: timestamp("sent_at", { withTimezone: true }),
   createdAt: createdAt(),
 });

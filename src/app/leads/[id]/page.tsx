@@ -32,6 +32,10 @@ function describeEvent(type: string, meta: unknown): string {
       return `Drafted email to ${m.to}${m.gmail ? " (in Gmail)" : ""}`;
     case "SENT":
       return `Sent to ${m.to}`;
+    case "REPLIED":
+      return `Reply received${m.from ? ` from ${String(m.from).replace(/<.*>/, "").trim()}` : ""}`;
+    case "FOLLOWUP_DRAFTED":
+      return `Follow-up drafted for ${m.to}`;
     case "STATUS_CHANGED":
       return `Moved ${STATUS_LABEL[m.from as LeadStatus] ?? m.from} → ${STATUS_LABEL[m.to as LeadStatus] ?? m.to}`;
     default:
@@ -61,6 +65,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
   const byContact = new Map(people.map((c) => [c.id, c]));
   const drafts = msgs.filter((m) => !m.sentAt && m.direction === "OUT");
   const sent = msgs.filter((m) => m.sentAt);
+  const hasReply = msgs.some((m) => m.direction === "IN");
 
   const facts: Array<[string, string | null]> = [
     ["Round", company.fundingRound],
@@ -136,6 +141,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
                     resumeId: m.resumeId,
                     inGmail: Boolean(m.gmailDraftId),
                     guessed: c?.emailSource === "PATTERN",
+                    followUp: m.isFollowUp,
                   }}
                   resumes={resumeRows}
                   gmailConnected={Boolean(gmail)}
@@ -147,16 +153,22 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
 
         {sent.length > 0 && (
           <section className="card p-4">
-            <h2 className="font-semibold">Sent</h2>
+            <h2 className="font-semibold">{hasReply ? "Conversation" : "Sent"}</h2>
             <ul className="mt-2 divide-y divide-zinc-100 text-sm">
-              {sent.map((m) => (
-                <li key={m.id} className="py-2">
-                  <span className="font-medium">{m.subject}</span>{" "}
-                  <span className="text-zinc-500">
-                    · to {m.contactId ? byContact.get(m.contactId)?.name ?? "contact" : "contact"} · {timeAgo(m.sentAt)}
-                  </span>
-                </li>
-              ))}
+              {sent.map((m) => {
+                const who = m.contactId ? byContact.get(m.contactId)?.name ?? "contact" : "contact";
+                return (
+                  <li key={m.id} className="py-2">
+                    {m.direction === "IN" && <span className="chip mr-1 bg-emerald-100 text-emerald-800">Reply</span>}
+                    {m.isFollowUp && <span className="chip mr-1 bg-amber-100 text-amber-800">Follow-up</span>}
+                    <span className="font-medium">{m.subject}</span>{" "}
+                    <span className="text-zinc-500">
+                      · {m.direction === "IN" ? `from ${who}` : `to ${who}`} · {timeAgo(m.sentAt)}
+                    </span>
+                    {m.direction === "IN" && <p className="mt-1 text-zinc-700">{m.body}</p>}
+                  </li>
+                );
+              })}
             </ul>
           </section>
         )}

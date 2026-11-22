@@ -24,3 +24,8 @@ export async function realDeps(): Promise<Deps> {
     loadResume,
   };
 }
+
+export async function realReplyDeps() {
+  const { getThread, createDraft, deleteDraft } = await import("@/lib/gmail");
+  return { getThread, createDraft, deleteDraft, llm: llmJson, profile: await getProfile() };
+}

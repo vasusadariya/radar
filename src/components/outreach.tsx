@@ -136,6 +136,7 @@ type Draft = {
   resumeId: string | null;
   inGmail: boolean;
   guessed: boolean;
+  followUp?: boolean;
 };
 
 export function DraftCard({
@@ -156,7 +157,7 @@ export function DraftCard({
   return (
     <form ref={formRef} action={action} className="card space-y-2 p-4">
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="font-medium">To {d.toName}</span>
+        <span className="font-medium">{d.followUp ? "Follow-up to" : "To"} {d.toName}</span>
         {d.inGmail && <span className="chip bg-sky-100 text-sky-800">In Gmail drafts</span>}
         {d.guessed && <span className="chip bg-amber-100 text-amber-800">Email is a guess — check it</span>}
       </div>

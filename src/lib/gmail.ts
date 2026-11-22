@@ -125,9 +125,20 @@ async function gmail<T>(path: string, init: RequestInit = {}): Promise<T> {
 export type Attachment = { filename: string; contentType: string; data: Buffer };
 
 /** RFC 2822 message, base64url-encoded as Gmail expects. Exported for tests. */
-export function buildMime(opts: { to: string; subject: string; body: string; attachment?: Attachment | null }): string {
+export type DraftInput = {
+  to: string;
+  subject: string;
+  body: string;
+  attachment?: Attachment | null;
+  /** Reply inside an existing thread (follow-ups). */
+  threadId?: string | null;
+  inReplyTo?: string | null;
+};
+
+export function buildMime(opts: DraftInput): string {
   const encodeHeader = (s: string) => (/^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${Buffer.from(s).toString("base64")}?=`);
   const headers = [`To: ${opts.to}`, `Subject: ${encodeHeader(opts.subject)}`, "MIME-Version: 1.0"];
+  if (opts.inReplyTo) headers.push(`In-Reply-To: ${opts.inReplyTo}`, `References: ${opts.inReplyTo}`);
   const text = Buffer.from(opts.body.replace(/\r?\n/g, "\r\n")).toString("base64");
   let raw: string;
   if (!opts.attachment) {
@@ -157,18 +168,20 @@ export function buildMime(opts: { to: string; subject: string; body: string; att
   return Buffer.from(raw).toString("base64url");
 }
 
-export async function createDraft(opts: { to: string; subject: string; body: string; attachment?: Attachment | null }) {
+const draftMessage = (opts: DraftInput) => ({ raw: buildMime(opts), ...(opts.threadId ? { threadId: opts.threadId } : {}) });
+
+export async function createDraft(opts: DraftInput) {
   const d = await gmail<{ id: string; message: { id: string; threadId: string } }>("drafts", {
     method: "POST",
-    body: JSON.stringify({ message: { raw: buildMime(opts) } }),
+    body: JSON.stringify({ message: draftMessage(opts) }),
   });
   return { draftId: d.id, threadId: d.message.threadId };
 }
 
-export async function updateDraft(draftId: string, opts: { to: string; subject: string; body: string; attachment?: Attachment | null }) {
+export async function updateDraft(draftId: string, opts: DraftInput) {
   const d = await gmail<{ id: string; message: { threadId: string } }>(`drafts/${draftId}`, {
     method: "PUT",
-    body: JSON.stringify({ id: draftId, message: { raw: buildMime(opts) } }),
+    body: JSON.stringify({ id: draftId, message: draftMessage(opts) }),
   });
   return { draftId: d.id, threadId: d.message.threadId };
 }
@@ -183,4 +196,38 @@ export async function deleteDraft(draftId: string) {
     method: "DELETE",
     headers: { authorization: `Bearer ${await accessToken()}` },
   });
+}
+
+export type ThreadMessage = {
+  id: string;
+  internalDate: number;
+  labelIds: string[];
+  snippet: string;
+  from: string;
+  subject: string;
+  messageId: string | null;
+};
+
+/** Thread headers + snippets only (no bodies), enough to spot replies and thread follow-ups. */
+export async function getThread(threadId: string): Promise<ThreadMessage[]> {
+  const q = ["From", "Subject", "Message-ID"].map((h) => `metadataHeaders=${h}`).join("&");
+  const t = await gmail<{
+    messages?: Array<{ id: string; internalDate: string; labelIds?: string[]; snippet?: string; payload?: { headers?: Array<{ name: string; value: string }> } }>;
+  }>(`threads/${threadId}?format=metadata&${q}`);
+  return (t.messages ?? []).map((m) => {
+    const h = (n: string) => m.payload?.headers?.find((x) => x.name.toLowerCase() === n.toLowerCase())?.value ?? "";
+    return {
+      id: m.id,
+      internalDate: Number(m.internalDate),
+      labelIds: m.labelIds ?? [],
+      snippet: decodeEntities(m.snippet ?? ""),
+      from: h("From"),
+      subject: h("Subject"),
+      messageId: h("Message-ID") || null,
+    };
+  });
+}
+
+function decodeEntities(s: string) {
+  return s.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
 }

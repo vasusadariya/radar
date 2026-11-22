@@ -1,11 +1,19 @@
 import Link from "next/link";
+import { after } from "next/server";
 import { desc, eq } from "drizzle-orm";
 import { db, companies, contacts, leads, messages } from "@/db";
 import { timeAgo } from "@/lib/format";
+import { CheckRepliesButton } from "@/components/check-replies";
+import { FOLLOW_UP_DAYS, lastReplyCheck } from "@/pipeline/replies";
+import { runReplyCheck } from "@/pipeline/reply-check";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 export default async function OutreachPage() {
+  // Opening this page checks Gmail for replies in the background (at most every 20 minutes).
+  after(() => runReplyCheck().catch((err) => console.error("reply check failed", err)));
+  const lastCheck = await lastReplyCheck();
   const rows = await db
     .select({
       id: messages.id,
@@ -15,6 +23,7 @@ export default async function OutreachPage() {
       direction: messages.direction,
       isFollowUp: messages.isFollowUp,
       leadId: leads.id,
+      body: messages.body,
       leadStatus: leads.status,
       company: companies.name,
       contact: contacts.name,
@@ -27,12 +36,58 @@ export default async function OutreachPage() {
     .orderBy(desc(messages.createdAt))
     .limit(300);
 
+  const replies = rows.filter((r) => r.direction === "IN").slice(0, 10);
+  const followUps = rows.filter((r) => r.isFollowUp && !r.sentAt);
+
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Outreach</h1>
-        <p className="text-sm text-zinc-500">Every email drafted or sent, who it went to, and whether they replied.</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Outreach</h1>
+          <p className="text-sm text-zinc-500">
+            Every email drafted or sent, who it went to, and whether they replied. Replies are checked when you open this
+            page (every 20 min at most) and daily{lastCheck ? ` · last checked ${timeAgo(lastCheck)}` : ""}.
+          </p>
+        </div>
+        <CheckRepliesButton />
       </div>
+
+      {replies.length > 0 && (
+        <section className="card p-4">
+          <h2 className="font-semibold">Replies</h2>
+          <ul className="mt-2 divide-y divide-zinc-100 text-sm">
+            {replies.map((r) => (
+              <li key={r.id} className="py-2">
+                <Link href={`/leads/${r.leadId}`} className="font-medium hover:underline">
+                  {r.company}
+                </Link>{" "}
+                <span className="text-zinc-500">· {r.contact ?? "contact"} · {timeAgo(r.sentAt)}</span>
+                <p className="mt-0.5 text-zinc-700">{r.body}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {followUps.length > 0 && (
+        <section className="card p-4">
+          <h2 className="font-semibold">Follow-ups to review ({followUps.length})</h2>
+          <p className="text-sm text-zinc-500">
+            No reply after {FOLLOW_UP_DAYS} days, so a short follow-up is waiting in the same Gmail thread. Review and send it
+            from the lead page.
+          </p>
+          <ul className="mt-2 divide-y divide-zinc-100 text-sm">
+            {followUps.map((r) => (
+              <li key={r.id} className="py-2">
+                <Link href={`/leads/${r.leadId}`} className="font-medium hover:underline">
+                  {r.company}
+                </Link>{" "}
+                <span className="text-zinc-500">· to {r.contact ?? "contact"}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {rows.length === 0 ? (
         <div className="card p-10 text-center">
           <p className="font-medium">No emails yet</p>

@@ -2,7 +2,7 @@
 
 A personal job-hunt command center. It catches freshly funded startups and fresh hiring posts, scores them against your profile, and tracks every lead from first sight to offer — all on free tiers.
 
-**Phase 1:** tracker + automatic funding feed. **Phase 2:** Easy Apply (research → people → emails → Gmail drafts).
+**Phase 1:** tracker + automatic funding feed. **Phase 2:** Easy Apply (research → people → emails → Gmail drafts). **Phase 3:** hiring-post capture, reply tracking, follow-ups.
 
 - **Radar** — inbox of new leads, scored 0–100 for fit, filterable by source
 - **Pipeline** — drag-and-drop kanban: New → Researched → Contacts found → Drafted → Sent → Replied → Interview → Offer / Dead
@@ -12,7 +12,8 @@ A personal job-hunt command center. It catches freshly funded startups and fresh
 
 - **Easy Apply (Run)** — reads the source article, the company homepage and its team/about pages; writes a brief and picks up to 3 named people (post author, founders, eng lead); finds emails (Hunter → Apollo if keyed, else MX-checked pattern guesses marked *Guessed*); drafts one ≤5-line email per person with the role-matched resume attached and puts it in your Gmail drafts. It never sends: each draft has its own Send (confirm + 15/day cap).
 
-**Phase 3** adds the 1-click capture bookmarklet for LinkedIn/X posts, reply watching and 3-day follow-ups.
+- **Capture (bookmarklet)** — install from the **Capture** page. On a LinkedIn or X post, select a bit of its text and click *Save to Radar*: a Radar tab opens, the AI checks it's a real hiring post for your roles, shows its age and likes (fresh = under a day, quiet = under 100 likes), and *Save & Run* drafts an email to the poster. The button only reads the page you're on; Radar never logs in to or scrapes LinkedIn/X.
+- **Replies & follow-ups** — Radar reads the Gmail threads it sent into. A reply moves the lead to *Replied* and shows on Outreach and the lead page. No reply after 3 days (`FOLLOW_UP_DAYS`) → one short follow-up is drafted in the same thread for you to review and send. Checks run when you open Outreach (at most every 20 min), on *Check replies now*, and daily via Vercel cron (set `CRON_SECRET` in Vercel to enable it).
 
 ### Gmail setup (once)
 

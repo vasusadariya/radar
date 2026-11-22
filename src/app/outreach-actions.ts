@@ -8,6 +8,7 @@ import { db, contacts, events, leads, messages, resumes } from "@/db";
 import { GmailError, createDraft, deleteDraft, disconnectGmail, gmailAccount, sendDraft, updateDraft } from "@/lib/gmail";
 import { claimRun, draftFor, runEasyApply, sentToday } from "@/pipeline/easy-apply";
 import { loadResume, realDeps } from "@/pipeline/deps";
+import { runReplyCheck } from "@/pipeline/reply-check";
 
 // "use server" files may only export async functions, so this stays module-private.
 const DAILY_SEND_CAP = Number(process.env.DAILY_SEND_CAP) || 15;
@@ -97,7 +98,12 @@ export async function saveDraft(messageId: string, _: unknown, fd: FormData): Pr
   if (m.contactId) await db.update(contacts).set({ email: parsed.data.to.toLowerCase() }).where(eq(contacts.id, m.contactId));
   if (m.gmailDraftId) {
     try {
-      await updateDraft(m.gmailDraftId, { ...parsed.data, attachment: await attachmentFor(resumeId) });
+      await updateDraft(m.gmailDraftId, {
+        ...parsed.data,
+        attachment: await attachmentFor(resumeId),
+        threadId: m.isFollowUp ? m.gmailThreadId : null,
+        inReplyTo: m.inReplyTo,
+      });
     } catch (err) {
       return { error: `Saved here, but Gmail draft not updated: ${(err as Error).message}` };
     }
@@ -121,13 +127,22 @@ export async function sendMessage(messageId: string): Promise<{ error?: string }
   try {
     let draftId = m.gmailDraftId;
     if (!draftId) {
-      draftId = (await createDraft({ to: c.email, subject: m.subject, body: m.body, attachment: await attachmentFor(m.resumeId) })).draftId;
+      draftId = (
+        await createDraft({
+          to: c.email,
+          subject: m.subject,
+          body: m.body,
+          attachment: await attachmentFor(m.resumeId),
+          threadId: m.isFollowUp ? m.gmailThreadId : null,
+          inReplyTo: m.inReplyTo,
+        })
+      ).draftId;
     }
     const sent = await sendDraft(draftId);
     await db.update(messages).set({ sentAt: new Date(), gmailThreadId: sent.threadId, gmailDraftId: null }).where(eq(messages.id, m.id));
     await db.insert(events).values({ leadId: m.leadId, type: "SENT", meta: { to: c.name, email: c.email } });
     const [lead] = await db.select({ status: leads.status }).from(leads).where(eq(leads.id, m.leadId));
-    if (lead && ["NEW", "RESEARCHED", "CONTACTS_FOUND", "DRAFTED"].includes(lead.status)) {
+    if (!m.isFollowUp && lead && ["NEW", "RESEARCHED", "CONTACTS_FOUND", "DRAFTED"].includes(lead.status)) {
       await db.update(leads).set({ status: "SENT" }).where(eq(leads.id, m.leadId));
       await db.insert(events).values({ leadId: m.leadId, type: "STATUS_CHANGED", meta: { from: lead.status, to: "SENT", via: "send" } });
     }
@@ -150,4 +165,16 @@ export async function discardDraft(messageId: string): Promise<{ error?: string 
 export async function disconnectGmailAction() {
   await disconnectGmail();
   revalidatePath("/profile");
+}
+
+export async function checkRepliesNow(): Promise<{ message: string }> {
+  try {
+    const r = await runReplyCheck(true);
+    refresh();
+    if ("skipped" in r) return { message: r.skipped === "gmail not connected" ? "Connect Gmail on the Profile page first." : "Checked recently." };
+    const parts = [`Checked ${r.threads} thread${r.threads === 1 ? "" : "s"}`, `${r.replies} new repl${r.replies === 1 ? "y" : "ies"}`, `${r.followUps} follow-up draft${r.followUps === 1 ? "" : "s"}`];
+    return { message: parts.join(" · ") + (r.errors.length ? ` · ${r.errors.length} error(s): ${r.errors[0]}` : "") };
+  } catch (err) {
+    return { message: `Check failed: ${(err as Error).message.slice(0, 200)}` };
+  }
 }
