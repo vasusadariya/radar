@@ -1,10 +1,16 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { runLead } from "@/app/outreach-actions";
 
-/** Starts Easy Apply. On the lead page it also polls while the run is in progress. */
+type Run = { runState: string; runStep?: string | null; runError?: string | null };
+
+/**
+ * Starts Easy Apply. While a run is in progress it polls a tiny status endpoint —
+ * one request at a time, never overlapping — and refreshes the page only when the
+ * step changes or the run finishes.
+ */
 export function RunButton({
   leadId,
   runState,
@@ -21,21 +27,54 @@ export function RunButton({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const running = runState === "running";
+  const [live, setLive] = useState<Run>({ runState, runStep, runError });
+  const lastKey = useRef(`${runState}|${runStep ?? ""}`);
+
+  // Server props win when they change (e.g. after a refresh).
+  useEffect(() => {
+    setLive({ runState, runStep, runError });
+    lastKey.current = `${runState}|${runStep ?? ""}`;
+  }, [runState, runStep, runError]);
+
+  const running = live.runState === "running";
 
   useEffect(() => {
     if (!running || compact) return;
-    const t = setInterval(() => router.refresh(), 2500);
-    return () => clearInterval(t);
-  }, [running, compact, router]);
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = async () => {
+      try {
+        const res = await fetch(`/api/leads/${leadId}/status`, { cache: "no-store", signal: AbortSignal.timeout(15_000) });
+        if (res.ok) {
+          const s = (await res.json()) as Run;
+          if (stopped) return;
+          setLive(s);
+          const key = `${s.runState}|${s.runStep ?? ""}`;
+          if (key !== lastKey.current) {
+            lastKey.current = key;
+            router.refresh(); // new step or finished: pull the new people/drafts
+          }
+          if (s.runState !== "running") return;
+        }
+      } catch {
+        // transient network error: just try again
+      }
+      if (!stopped) timer = setTimeout(tick, 3000);
+    };
+    timer = setTimeout(tick, 2000);
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+  }, [running, compact, leadId, router]);
 
   const click = () =>
     start(async () => {
       setError(null);
       const res = await runLead(leadId);
       if (res.error && res.error !== "Already running") setError(res.error);
+      else setLive({ runState: "running", runStep: "Starting", runError: null });
       if (compact) router.push(`/leads/${leadId}`);
-      else router.refresh();
     });
 
   if (compact) {
@@ -47,7 +86,7 @@ export function RunButton({
         className="btn-primary px-2.5 py-1 text-xs"
         title="Research → find people → find emails → draft (never sends on its own)"
       >
-        {running ? "Running…" : runState === "done" ? "Run again" : "Run"}
+        {running ? "Running…" : live.runState === "done" ? "Run again" : "Run"}
       </button>
     );
   }
@@ -55,20 +94,24 @@ export function RunButton({
   return (
     <div className="flex flex-wrap items-center gap-3">
       <button type="button" onClick={click} disabled={pending || running} className="btn-primary">
-        {running ? "Running…" : runState === "done" ? "Run Easy Apply again" : "Run Easy Apply"}
+        {running ? "Running…" : live.runState === "done" ? "Run Easy Apply again" : "Run Easy Apply"}
       </button>
       {running && (
         <span className="flex items-center gap-2 text-sm text-zinc-600">
           <span className="h-3 w-3 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-900" />
-          {runStep ?? "Working…"}
+          {live.runStep ?? "Working…"}
         </span>
       )}
-      {!running && runState === "done" && runStep && <span className="text-sm text-amber-700">{runStep}</span>}
-      {!running && runState === "done" && !runStep && <span className="text-sm text-emerald-700">Done — review the drafts below.</span>}
-      {!running && runState === "error" && <span className="text-sm text-red-600">Failed: {runError}</span>}
+      {!running && live.runState === "done" && live.runStep && <span className="text-sm text-amber-700">{live.runStep}</span>}
+      {!running && live.runState === "done" && !live.runStep && (
+        <span className="text-sm text-emerald-700">Done — review the drafts below.</span>
+      )}
+      {!running && live.runState === "error" && <span className="text-sm text-red-600">Failed: {live.runError}</span>}
       {error && <span className="text-sm text-red-600">{error}</span>}
-      {runState === "idle" && (
-        <span className="text-xs text-zinc-500">Research → find up to 3 people → find emails → draft each email. Nothing is sent until you click Send.</span>
+      {live.runState === "idle" && (
+        <span className="text-xs text-zinc-500">
+          Research → find up to 3 people → find emails → draft each email. Nothing is sent until you click Send.
+        </span>
       )}
     </div>
   );

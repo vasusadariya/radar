@@ -30,7 +30,11 @@ export const Research = z.object({
   website: z.string().nullish(),
   whatTheyBuild: z.string().default(""),
   whereYouHelp: z.array(z.string()).default([]).transform((a) => a.slice(0, 3)),
-  brief: z.string().default(""),
+  // Models sometimes return the brief as a list of lines; accept both.
+  brief: z
+    .union([z.string(), z.array(z.string())])
+    .default("")
+    .transform((b) => (Array.isArray(b) ? b.join("\n") : b)),
   roleToPitch: z.string().nullish(),
   people: z
     .array(z.object({ name: z.string(), title: z.string().nullish(), source: z.string().nullish() }))

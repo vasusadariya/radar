@@ -34,10 +34,18 @@ export function jsonSchemaFor(schema: z.ZodType): Record<string, unknown> | null
   }
 }
 
-/** Ask the model for every field (optional ones may still be null) and drop defaults it can't use. */
+/**
+ * Shape the schema we ask the model for: every field required (optional ones may
+ * still be null), defaults dropped, and for a union only its FIRST variant — the
+ * parser stays lenient and accepts the other variants as a fallback.
+ */
 function requireAll(node: unknown): unknown {
   if (Array.isArray(node)) return node.map(requireAll);
   if (!node || typeof node !== "object") return node;
+  const anyOf = (node as { anyOf?: unknown[] }).anyOf;
+  if (Array.isArray(anyOf) && anyOf.length && !anyOf.some((v) => (v as { type?: string }).type === "null")) {
+    return requireAll(anyOf[0]);
+  }
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(node)) if (k !== "default") out[k] = requireAll(v);
   if (out.type === "object" && out.properties && typeof out.properties === "object") {

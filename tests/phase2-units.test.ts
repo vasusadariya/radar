@@ -104,3 +104,13 @@ test("LLM schema: every field required, defaults stripped, issues readable", asy
   const ok = Research.parse({ whatTheyBuild: "x", brief: "y", whereYouHelp: ["a", "b", "c", "d", "e"], people: [] });
   assert.equal(ok.whereYouHelp.length, 3, "oversized lists are trimmed, not rejected");
 });
+
+test("LLM schema asks for the first union variant; parser still accepts the others", async () => {
+  process.env.DATABASE_URL ??= "postgresql://unused";
+  const { jsonSchemaFor } = await import("../src/lib/llm");
+  const { Research } = await import("../src/pipeline/easy-apply");
+  const js = jsonSchemaFor(Research) as { properties: Record<string, unknown> };
+  assert.deepEqual(js.properties.brief, { type: "string" });
+  const parsed = Research.parse({ whatTheyBuild: "x", whereYouHelp: [], brief: ["line 1", "line 2"], people: [] });
+  assert.equal(parsed.brief, "line 1\nline 2");
+});
