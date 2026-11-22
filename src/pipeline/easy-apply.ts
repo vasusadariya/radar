@@ -25,19 +25,24 @@ export type Deps = {
 
 export const MAX_PEOPLE = 3;
 
-const Research = z.object({
+// Lenient on purpose: trim oversized lists instead of failing the whole run.
+export const Research = z.object({
   website: z.string().nullish(),
-  whatTheyBuild: z.string(),
-  whereYouHelp: z.array(z.string()).max(4),
-  brief: z.string(),
+  whatTheyBuild: z.string().default(""),
+  whereYouHelp: z.array(z.string()).default([]).transform((a) => a.slice(0, 3)),
+  brief: z.string().default(""),
   roleToPitch: z.string().nullish(),
   people: z
     .array(z.object({ name: z.string(), title: z.string().nullish(), source: z.string().nullish() }))
-    .max(6),
+    .default([])
+    .transform((a) => a.filter((p) => p.name.trim()).slice(0, 6)),
 });
 type ResearchOut = z.infer<typeof Research>;
 
-const Draft = z.object({ subject: z.string().min(3).max(120), body: z.string().min(20) });
+export const Draft = z.object({
+  subject: z.string().min(3).transform((s) => s.trim().slice(0, 120)),
+  body: z.string().min(20),
+});
 
 async function setStep(leadId: string, step: string) {
   await db.update(leads).set({ runStep: step }).where(eq(leads.id, leadId));
@@ -161,6 +166,19 @@ export async function findContacts(
   return saved;
 }
 
+/** Drop any sign-off the model added anyway; the real signature is appended after. */
+export function cleanBody(body: string): string {
+  const lines = body.replace(/\r/g, "").trim().split("\n");
+  // A sign-off is a short line that is ONLY the closing ("Best,", "Thanks, Vasu") — not a sentence that starts with "Thanks".
+  const signoff = /^(best|best regards|regards|kind regards|warm regards|thanks|thank you|cheers|sincerely)(?:[,!.]?|,\s*[A-Z][A-Za-z .]{0,30})$/i;
+  const at = lines.findIndex((l, i) => i > 0 && l.trim().length <= 40 && signoff.test(l.trim()));
+  const kept = at > 0 ? lines.slice(0, at) : lines;
+  // Inline sign-off on the last line ("... let's chat. Best, Engineer.")
+  const last = kept.length - 1;
+  kept[last] = kept[last].replace(/\s+(best|regards|thanks|cheers)[,!]?\s+[\w .]{0,40}\.?$/i, "").trimEnd();
+  return kept.join("\n").trim();
+}
+
 function signature(p: Profile): string {
   const links = [p.portfolioUrl, p.githubUrl, p.linkedinUrl].filter(Boolean);
   return [p.fullName || "", ...links].filter(Boolean).join("\n");
@@ -203,11 +221,12 @@ RULES:
 - ${resume ? "Mention that the resume is attached in a few words." : "Do not mention a resume."}
 - Plain text. No links in the body; the signature carries them. Do not invent facts about the company or the seeker.
 - Subject: short and specific, under 60 characters.
-- Do not write a signature; it is added after.
+- Do not write a sign-off or signature ("Best", your name, links); it is added after.
+- Put each line on its own line: use a newline character between lines in "body".
 
 Return JSON {"subject": "...", "body": "..."} where body starts with "Hi ${contact.name.split(/\s+/)[0]},".`;
   const d = await deps.llm(prompt, Draft);
-  const body = `${d.body.trim()}\n\n${signature(p)}`.trim();
+  const body = `${cleanBody(d.body)}\n\n${signature(p)}`.trim();
 
   const [msg] = await db
     .insert(messages)

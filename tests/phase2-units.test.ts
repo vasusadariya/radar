@@ -82,3 +82,25 @@ test("startOfDayIST", async () => {
   assert.equal(startOfDayIST(new Date("2026-11-21T19:30:00Z")).toISOString(), "2026-11-21T18:30:00.000Z");
   assert.equal(startOfDayIST(new Date("2026-11-22T10:00:00Z")).toISOString(), "2026-11-21T18:30:00.000Z");
 });
+
+test("cleanBody strips model-added sign-offs", async () => {
+  process.env.DATABASE_URL ??= "postgresql://unused";
+  const { cleanBody } = await import("../src/pipeline/easy-apply");
+  assert.equal(cleanBody("Hi Rahul,\nLine two.\nOpen to a chat?\n\nBest,\nVasu"), "Hi Rahul,\nLine two.\nOpen to a chat?");
+  assert.equal(cleanBody("Hi Rahul, congrats. Let's chat. Best, Engineer."), "Hi Rahul, congrats. Let's chat.");
+  assert.equal(cleanBody("Hi Rahul,\nThanks for building this.\nChat?"), "Hi Rahul,\nThanks for building this.\nChat?");
+});
+
+test("LLM schema: every field required, defaults stripped, issues readable", async () => {
+  process.env.DATABASE_URL ??= "postgresql://unused";
+  const { jsonSchemaFor, describeIssues } = await import("../src/lib/llm");
+  const { Research } = await import("../src/pipeline/easy-apply");
+  const js = jsonSchemaFor(Research) as { required: string[]; properties: Record<string, { default?: unknown }> };
+  assert.deepEqual(js.required.sort(), ["brief", "people", "roleToPitch", "website", "whatTheyBuild", "whereYouHelp"]);
+  assert.ok(!("default" in js.properties.whereYouHelp));
+  const bad = Research.safeParse({ whatTheyBuild: 1, people: [{ title: "CEO" }] });
+  assert.ok(!bad.success);
+  assert.match(describeIssues(bad.error), /people\.0\.name/);
+  const ok = Research.parse({ whatTheyBuild: "x", brief: "y", whereYouHelp: ["a", "b", "c", "d", "e"], people: [] });
+  assert.equal(ok.whereYouHelp.length, 3, "oversized lists are trimmed, not rejected");
+});
