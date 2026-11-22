@@ -107,6 +107,7 @@ export async function ingestFunding(opts: {
   profile: Profile;
   log?: (msg: string) => void;
   now?: Date;
+  budgetMs?: number;
 }): Promise<IngestStats> {
   const log = opts.log ?? (() => {});
   const stats: IngestStats = {
@@ -148,7 +149,15 @@ export async function ingestFunding(opts: {
   }
 
   const profileText = profileForPrompt(opts.profile);
+  const batches = Math.ceil(candidates.length / BATCH_SIZE);
+  log(`${stats.seen} items, ${stats.newItems} new, ${candidates.length} look like funding news -> ${batches} LLM batch(es)`);
+  const deadline = Date.now() + (opts.budgetMs ?? 10 * 60_000);
   for (let start = 0; start < candidates.length; start += BATCH_SIZE) {
+    if (Date.now() > deadline) {
+      log(`time budget reached; ${candidates.length - start} items left for the next run`);
+      break;
+    }
+    log(`batch ${start / BATCH_SIZE + 1}/${batches}...`);
     const batch = candidates.slice(start, start + BATCH_SIZE);
     stats.sentToLlm += batch.length;
     let extracted: Extracted[];

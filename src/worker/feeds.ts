@@ -6,9 +6,9 @@ export type Feed = { name: string; url: string };
 
 export const DEFAULT_FEEDS: Feed[] = [
   { name: "TechCrunch Venture", url: "https://techcrunch.com/category/venture/feed/" },
-  { name: "Finsmes", url: "https://www.finsmes.com/feed" },
+  // Finsmes is not included: it refuses automated feed readers (HTTP 403).
   { name: "Inc42", url: "https://inc42.com/feed/" },
-  { name: "Entrackr", url: "https://entrackr.com/feed" },
+  { name: "Entrackr", url: "https://entrackr.com/rss" },
   { name: "YourStory", url: "https://yourstory.com/feed" },
 ];
 

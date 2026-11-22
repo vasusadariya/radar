@@ -9,10 +9,14 @@ import { z } from "zod";
 export type LlmJson = <T>(prompt: string, schema: z.ZodType<T>) => Promise<T>;
 
 // Tried in order: a busy (503) or retired (404) model falls through to the next.
+// Lite first: fast and plenty for extraction; the bigger model is the fallback.
 const GEMINI_MODELS = [
-  ...new Set([process.env.GEMINI_MODEL || "gemini-flash-latest", "gemini-flash-lite-latest"].filter(Boolean)),
+  ...new Set([process.env.GEMINI_MODEL || "gemini-flash-lite-latest", "gemini-flash-latest"].filter(Boolean)),
 ];
 const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+
+// An overloaded model can hold a request open for minutes; give up and fall through instead.
+const REQUEST_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 60_000;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -24,6 +28,7 @@ async function callGemini(prompt: string, model: string): Promise<string> {
     {
       method: "POST",
       headers: { "content-type": "application/json", "x-goog-api-key": key },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       body: JSON.stringify({
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
@@ -43,6 +48,7 @@ async function callGroq(prompt: string): Promise<string> {
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     body: JSON.stringify({
       model: GROQ_MODEL,
       temperature: 0.2,

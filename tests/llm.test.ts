@@ -11,15 +11,15 @@ test("falls through to the next Gemini model when one is overloaded", async () =
   globalThis.fetch = (async (url: string) => {
     const model = String(url).match(/models\/([^:]+):/)?.[1] ?? "";
     called.push(model);
-    if (model === "gemini-flash-latest") return new Response("busy", { status: 503 });
+    if (model === "gemini-flash-lite-latest") return new Response("busy", { status: 503 });
     return Response.json({ candidates: [{ content: { parts: [{ text: '{"ok":true}' }] } }] });
   }) as typeof fetch;
   try {
     const { llmJson } = await import("../src/lib/llm");
     const out = await llmJson("hi", z.object({ ok: z.boolean() }));
     assert.deepEqual(out, { ok: true });
-    assert.equal(called.at(-1), "gemini-flash-lite-latest");
-    assert.ok(called.filter((m) => m === "gemini-flash-latest").length >= 1);
+    assert.equal(called.at(-1), "gemini-flash-latest");
+    assert.ok(called.filter((m) => m === "gemini-flash-lite-latest").length >= 1);
   } finally {
     globalThis.fetch = realFetch;
   }

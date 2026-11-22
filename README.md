@@ -6,7 +6,7 @@ A personal job-hunt command center. It catches freshly funded startups and fresh
 
 - **Radar** — inbox of new leads, scored 0–100 for fit, filterable by source
 - **Pipeline** — drag-and-drop kanban: New → Researched → Contacts found → Drafted → Sent → Replied → Interview → Offer / Dead
-- **Funding worker** — every 3 hours, reads TechCrunch, Finsmes, Inc42, Entrackr and YourStory, asks Gemini which items are funding rounds, extracts company/round/amount/investors, scores fit, dedupes across outlets
+- **Funding worker** — every 3 hours, reads TechCrunch, Inc42, Entrackr and YourStory, asks Gemini which items are funding rounds, extracts company/round/amount/investors, scores fit, dedupes across outlets
 - **Profile** — targeting questions (roles, internship vs full-time, stages, locations, comp floor) that drive scoring, plus resume variants per role
 - **Outreach / Stats** — email log and reply rate by channel (fills up in Phase 2)
 
