@@ -2,7 +2,7 @@
 
 A personal job-hunt command center. It catches freshly funded startups and fresh hiring posts, scores them against your profile, and tracks every lead from first sight to offer — all on free tiers.
 
-**Phase 1 (this commit):** tracker + automatic funding feed.
+**Phase 1:** tracker + automatic funding feed. **Phase 2:** Easy Apply (research → people → emails → Gmail drafts).
 
 - **Radar** — inbox of new leads, scored 0–100 for fit, filterable by source
 - **Pipeline** — drag-and-drop kanban: New → Researched → Contacts found → Drafted → Sent → Replied → Interview → Offer / Dead
@@ -10,7 +10,18 @@ A personal job-hunt command center. It catches freshly funded startups and fresh
 - **Profile** — targeting questions (roles, internship vs full-time, stages, locations, comp floor) that drive scoring, plus resume variants per role
 - **Outreach / Stats** — email log and reply rate by channel (fills up in Phase 2)
 
-**Phase 2** adds the Run button: research → pick 3 people → email waterfall (pattern + Apollo/Prospeo/Hunter) → Gmail draft with the matching resume attached. **Phase 3** adds the 1-click capture bookmarklet for LinkedIn/X posts, reply watching and follow-ups.
+- **Easy Apply (Run)** — reads the source article, the company homepage and its team/about pages; writes a brief and picks up to 3 named people (post author, founders, eng lead); finds emails (Hunter → Apollo if keyed, else MX-checked pattern guesses marked *Guessed*); drafts one ≤5-line email per person with the role-matched resume attached and puts it in your Gmail drafts. It never sends: each draft has its own Send (confirm + 15/day cap).
+
+**Phase 3** adds the 1-click capture bookmarklet for LinkedIn/X posts, reply watching and 3-day follow-ups.
+
+### Gmail setup (once)
+
+1. Google Cloud → APIs & Services: enable the **Gmail API**.
+2. Google Auth Platform: External app in *Testing*, your Gmail added as a test user.
+3. Clients → Web application, redirect URIs `https://<app>.vercel.app/api/google/callback` and `http://localhost:3000/api/google/callback`.
+4. Put `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` in Vercel, redeploy, then **Profile → Connect Gmail**.
+
+In *Testing* mode Google expires the connection after 7 days; reconnect from Profile, or publish the app (it will show an "unverified app" warning that only you will see).
 
 ## Stack
 
