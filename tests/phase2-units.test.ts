@@ -114,3 +114,25 @@ test("LLM schema asks for the first union variant; parser still accepts the othe
   const parsed = Research.parse({ whatTheyBuild: "x", whereYouHelp: [], brief: ["line 1", "line 2"], people: [] });
   assert.equal(parsed.brief, "line 1\nline 2");
 });
+
+test("findEmail with no domain: finders get the company name, no guessing", async () => {
+  const calls: Array<{ domain: string | null; company: string }> = [];
+  const hit = await findEmail({ name: "Prateep Basu" }, { name: "SatSure", domain: null }, {
+    finders: [async (p) => { calls.push({ domain: p.domain, company: p.company }); return { email: "prateep@satsure.co", domain: "satsure.co", source: "HUNTER", verified: true }; }],
+    mxCheck: async () => true,
+  });
+  assert.deepEqual(calls, [{ domain: null, company: "SatSure" }]);
+  assert.equal(hit?.domain, "satsure.co");
+  const none = await findEmail({ name: "Prateep Basu" }, { name: "SatSure", domain: null }, { finders: [async () => null], mxCheck: async () => true });
+  assert.equal(none, null, "no domain and no finder hit -> no guess");
+});
+
+test("siteMatches accepts the real site, rejects news/social and unrelated pages", async () => {
+  process.env.DATABASE_URL ??= "postgresql://unused";
+  const { siteMatches } = await import("../src/pipeline/easy-apply");
+  const page = (title: string, text = "") => async (url: string) => ({ url, title, text, links: [], emails: [] });
+  assert.equal(await siteMatches("satsure.co", "SatSure", { fetchPage: page("SatSure | Earth intelligence") }), true);
+  assert.equal(await siteMatches("satsure.com", "SatSure", { fetchPage: page("Domain for sale") }), false);
+  assert.equal(await siteMatches("yourstory.com", "SatSure", { fetchPage: page("SatSure raises") }), false);
+  assert.equal(await siteMatches("down.example", "SatSure", { fetchPage: async () => null }), false);
+});

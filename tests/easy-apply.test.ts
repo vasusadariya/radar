@@ -118,6 +118,38 @@ test("research -> people -> emails -> drafts -> gmail drafts, idempotent on re-r
   for (const t of ["RESEARCHED", "EMAIL_FOUND", "EMAIL_NOT_FOUND", "DRAFTED", "STATUS_CHANGED"]) assert.ok(types.includes(t), t);
 });
 
+test("no domain: model-suggested site is verified, Hunter's domain is learned", { skip }, async () => {
+  const { db, companies, leads, contacts } = await import("../src/db");
+  const { eq } = await import("drizzle-orm");
+  const { runEasyApply } = await import("../src/pipeline/easy-apply");
+  const { getProfile } = await import("../src/lib/profile");
+  const [co] = await db.insert(companies).values({ name: "SatSure", nameKey: "satsure" }).returning();
+  const [lead] = await db.insert(leads).values({ companyId: co.id, source: "FUNDING", title: "SatSure raised Rs 60 Cr", postUrl: "https://news.test/satsure" }).returning();
+  const seenDomains: Array<string | null> = [];
+  const deps = {
+    llm: (async (prompt: string, schema: { parse: (x: unknown) => unknown }) =>
+      prompt.includes('"people"')
+        ? schema.parse({ website: "satsure.co", whatTheyBuild: "Earth observation", whereYouHelp: ["x"], brief: "b", roleToPitch: null,
+            people: [{ name: "Prateep Basu", title: "CEO", source: "article" }, { name: "Rashmit Singh", title: "CTO", source: "article" }] })
+        : schema.parse({ subject: "Hello there", body: "Hi Prateep,\nShort note about your raise and how I can help." })) as never,
+    fetchPage: async (url: string) =>
+      url === "https://satsure.co" ? { url, title: "SatSure — Earth intelligence", text: "", links: [], emails: [] }
+      : url === "https://news.test/satsure" ? { url, title: "SatSure raises", text: "SatSure CEO Prateep Basu...", links: [], emails: [] } : null,
+    findEmail: async (p: { name: string }, c: { name: string; domain: string | null }) => {
+      seenDomains.push(c.domain);
+      return { email: `${p.name.split(" ")[0].toLowerCase()}@${c.domain ?? "satsure.co"}`, source: "HUNTER" as const, verified: true, domain: "satsure.co" };
+    },
+    profile: await getProfile(),
+    gmail: null,
+    loadResume: async () => null,
+  };
+  const out = await runEasyApply(lead.id, deps);
+  assert.equal(out.withEmail, 2);
+  assert.deepEqual(seenDomains, ["satsure.co", "satsure.co"], "verified model domain used for every lookup");
+  assert.equal((await db.select().from(companies).where(eq(companies.id, co.id)))[0].domain, "satsure.co");
+  assert.equal((await db.select().from(contacts).where(eq(contacts.companyId, co.id))).length, 2);
+});
+
 test("a failing step marks the run as error and keeps the message", { skip }, async () => {
   const { db, companies, leads } = await import("../src/db");
   const { eq } = await import("drizzle-orm");

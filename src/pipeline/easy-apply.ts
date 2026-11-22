@@ -65,6 +65,16 @@ function sources(pages: Array<{ label: string; page: PageText | null }>): string
     .join("\n\n");
 }
 
+/** Accept a model-suggested domain only if the site loads and names the company. */
+export async function siteMatches(domain: string, companyName: string, deps: Pick<Deps, "fetchPage">): Promise<boolean> {
+  if (/(linkedin|twitter|x|facebook|crunchbase|yourstory|inc42|techcrunch|entrackr|medium|github)\.com$/i.test(domain)) return false;
+  const page = await deps.fetchPage(`https://${domain}`);
+  if (!page) return false;
+  const words = companyName.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !["inc", "ltd", "pvt", "the", "labs", "technologies"].includes(w));
+  const hay = `${page.title} ${page.text.slice(0, 3000)}`.toLowerCase(); // not the URL: it always "contains" the name
+  return words.length > 0 && words.every((w) => hay.includes(w));
+}
+
 export async function research(leadId: string, deps: Deps): Promise<ResearchOut & { domain: string | null }> {
   const [row] = await db
     .select({ lead: leads, company: companies })
@@ -99,16 +109,19 @@ ${sources([{ label: "Source article / post", page: article }, { label: "Company 
 
 Return JSON:
 {
- "website": company website if stated in the sources (else null),
+ "website": the company's official website — as stated in the sources, or one you are confident is theirs (it will be checked); null if unsure,
  "whatTheyBuild": one plain sentence,
  "whereYouHelp": 2-3 specific places this job seeker could contribute, tied to their stack and proof points,
  "brief": 3-5 short lines a busy reader can scan before emailing,
  "roleToPitch": which of the seeker's target roles fits best,
- "people": up to ${MAX_PEOPLE} people to email, most relevant first: the hiring post author if any, then founders/CEO/CTO, then an engineering lead. Only people NAMED in the sources or lead details — never invent names. Each: {"name","title","source"}
+ "people": up to ${MAX_PEOPLE} people who WORK AT ${company.name}, most relevant first: the hiring post author if any, then founders/CEO/CTO, then an engineering lead. Only people NAMED in the sources or lead details — never invent names. Never include investors, VC partners, fund managers, journalists, or anyone at another company. Each: {"name","title","source"}
 }`;
   const out = await deps.llm(prompt, Research);
 
-  if (!domain) domain = domainFrom(out.website) ?? null;
+  if (!domain) {
+    const suggested = domainFrom(out.website);
+    if (suggested && (await siteMatches(suggested, company.name, deps))) domain = suggested;
+  }
   if (domain && domain !== company.domain) await db.update(companies).set({ domain }).where(eq(companies.id, company.id));
 
   // The hiring-post author always leads when known.
@@ -146,6 +159,10 @@ export async function findContacts(
       continue;
     }
     const found = await deps.findEmail({ name: p.name }, { name: companyName, domain });
+    if (!domain && found?.domain) {
+      domain = found.domain; // learned from Hunter/Apollo — reuse it for the next people
+      await db.update(companies).set({ domain }).where(eq(companies.id, companyId));
+    }
     const values = {
       companyId,
       name: p.name,
