@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 
 const LINKS = [
@@ -11,6 +11,14 @@ const LINKS = [
   { href: "/capture", label: "Capture" },
   { href: "/profile", label: "Profile" },
 ];
+
+/** Shows a spinner on the link you just clicked until the page arrives. */
+function Pending() {
+  const { pending } = useLinkStatus();
+  return pending ? (
+    <span className="ml-1.5 inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent align-[-2px] opacity-70" />
+  ) : null;
+}
 
 export function Nav() {
   const path = usePathname();
@@ -32,11 +40,12 @@ export function Nav() {
               <Link
                 key={l.href}
                 href={l.href}
-                className={`rounded-md px-2.5 py-1.5 whitespace-nowrap ${
-                  active ? "bg-zinc-900 text-white" : "text-zinc-600 hover:bg-zinc-100"
+                className={`rounded-md px-2.5 py-1.5 whitespace-nowrap transition-colors ${
+                  active ? "bg-zinc-900 text-white" : "text-zinc-600 hover:bg-zinc-100 active:bg-zinc-200"
                 }`}
               >
                 {l.label}
+                <Pending />
               </Link>
             );
           })}
