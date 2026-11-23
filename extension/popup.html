@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body { margin: 0; width: 280px; font: 13px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #18181b; }
+      header { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid #e4e4e7; font-weight: 600; }
+      header img { width: 20px; height: 20px; }
+      main { padding: 12px 14px; display: grid; gap: 8px; }
+      button, a.btn { display: block; width: 100%; box-sizing: border-box; text-align: center; padding: 8px 10px; border-radius: 8px; border: 1px solid #d4d4d8; background: #fff; color: #18181b; font: inherit; font-weight: 500; text-decoration: none; cursor: pointer; }
+      button.primary { background: #18181b; border-color: #18181b; color: #fff; }
+      button:hover, a.btn:hover { filter: brightness(0.96); }
+      p { margin: 0; color: #71717a; font-size: 12px; }
+      #msg { color: #b45309; min-height: 1em; }
+      kbd { font: 11px ui-monospace, monospace; border: 1px solid #d4d4d8; border-radius: 4px; padding: 0 4px; }
+    </style>
+  </head>
+  <body>
+    <header><img src="icons/32.png" alt="" />Radar</header>
+    <main>
+      <button id="save" class="primary">Save this post</button>
+      <p id="msg"></p>
+      <p>Tip: every LinkedIn and X post has a green <b>Radar</b> button. You can also select text and press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd>, or right-click → Save to Radar.</p>
+      <a class="btn" id="open" target="_blank">Open dashboard</a>
+      <a class="btn" id="add" target="_blank">Add a lead by hand</a>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

@@ -73,3 +73,9 @@ src/lib/llm.ts          Gemini/Groq JSON client with retries + fallback
 src/app/                pages + server actions
 .github/workflows/      3-hourly cron
 ```
+
+## Chrome extension
+
+`extension/` is a Manifest V3 extension that adds a **Radar** button to every LinkedIn and X post, plus Alt+Shift+R and a right-click "Save to Radar". It opens `/capture#…` exactly like the bookmarklet; it never calls LinkedIn/X or Radar's API itself.
+
+After changing anything in `extension/`, rebuild the downloadable zip: `node scripts/build-extension.mjs` (writes `public/radar-extension.zip`, served at `/radar-extension.zip` behind login).

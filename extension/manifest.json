@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Radar – Save hiring posts",
+  "short_name": "Radar",
+  "version": "1.0.0",
+  "description": "One click on a LinkedIn or X hiring post sends it to your Radar job-hunt dashboard.",
+  "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" },
+  "action": { "default_popup": "popup.html", "default_title": "Radar", "default_icon": { "16": "icons/16.png", "32": "icons/32.png" } },
+  "background": { "service_worker": "background.js", "type": "module" },
+  "permissions": ["contextMenus", "activeTab", "scripting"],
+  "content_scripts": [
+    {
+      "matches": ["https://*.linkedin.com/*", "https://x.com/*", "https://twitter.com/*", "https://mobile.twitter.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "save-post": {
+      "suggested_key": { "default": "Alt+Shift+R" },
+      "description": "Save the selected / open post to Radar"
+    }
+  }
+}

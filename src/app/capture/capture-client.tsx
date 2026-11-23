@@ -56,7 +56,33 @@ function Install() {
         </p>
       </div>
       <section className="card space-y-4 p-5">
-        <h2 className="font-semibold">1. Install the button (once)</h2>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-semibold">1. Install the Chrome extension (recommended)</h2>
+            <p className="text-sm text-zinc-600">
+              Adds a green <b>Radar</b> button to every LinkedIn and X post — no text selecting needed.
+            </p>
+          </div>
+          <a href="/radar-extension.zip" download className="btn-primary">
+            Download extension
+          </a>
+        </div>
+        <ol className="list-decimal space-y-1 pl-5 text-sm text-zinc-700">
+          <li>Unzip the download into a folder you&apos;ll keep (e.g. Documents/radar-extension).</li>
+          <li>
+            Open <code className="rounded bg-zinc-100 px-1">chrome://extensions</code> and switch on <b>Developer mode</b> (top right).
+          </li>
+          <li>
+            Click <b>Load unpacked</b> and pick that folder. Pin Radar from the puzzle-piece menu.
+          </li>
+        </ol>
+        <p className="text-xs text-zinc-500">
+          Also works by selecting text and pressing Alt + Shift + R, or right-click → Save to Radar on any site. It can only read
+          LinkedIn and X pages, and only sends a post when you click.
+        </p>
+      </section>
+      <section className="card space-y-4 p-5">
+        <h2 className="font-semibold">Or: the bookmark button (no install)</h2>
         <p className="text-sm text-zinc-600">
           Show your bookmarks bar (Ctrl/⌘ + Shift + B), then drag this button onto it:
         </p>
@@ -74,7 +100,10 @@ function Install() {
         <ol className="list-decimal space-y-1 pl-5 text-sm text-zinc-700">
           <li>On LinkedIn, search &quot;hiring&quot; + your role, sorted by <b>Latest</b>. On X, search the same and pick <b>Latest</b>.</li>
           <li>Find a post under a day old with under 100 likes — that&apos;s the window to be early.</li>
-          <li>Select a bit of the post&apos;s text (or open the post itself), then click <b>Save to Radar</b>.</li>
+          <li>
+            Click the post&apos;s green <b>Radar</b> button (extension), or select a bit of its text and click <b>Save to Radar</b>
+            (bookmark).
+          </li>
           <li>A Radar tab opens: check what the AI read, then <b>Save &amp; Run</b> to research the company and draft an email to the poster.</li>
         </ol>
         <p className="text-xs text-zinc-500">
