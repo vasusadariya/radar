@@ -19,7 +19,7 @@ A personal job-hunt command center. It catches freshly funded startups and fresh
 
 1. Google Cloud → APIs & Services: enable the **Gmail API**.
 2. Google Auth Platform: External app in *Testing*, your Gmail added as a test user.
-3. Clients → Web application, redirect URIs `https://<app>.vercel.app/api/google/callback` and `http://localhost:3000/api/google/callback`.
+3. Clients → Web application, redirect URIs `https://radar.vasusadariya.dev/api/google/callback` (plus the old `https://radar-lovat-iota.vercel.app/...`, which now redirects) and `http://localhost:3000/api/google/callback`.
 4. Put `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` in Vercel, redeploy, then **Profile → Connect Gmail**.
 
 In *Testing* mode Google expires the connection after 7 days; reconnect from Profile, or publish the app (it will show an "unverified app" warning that only you will see).
